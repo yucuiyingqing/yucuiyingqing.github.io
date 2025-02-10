@@ -2,22 +2,9 @@ document.addEventListener("DOMContentLoaded", function () {
   volantis.requestAnimationFrame(() => {
     VolantisApp.init();
     VolantisApp.subscribe();
-    VolantisFancyBox.init();
+    new VolantisFancyBox();
     highlightKeyWords.startFromURL();
     locationHash();
-
-    volantis.pjax.push(() => {
-      VolantisApp.pjaxReload();
-      VolantisFancyBox.init();
-      sessionStorage.setItem("domTitle", document.title);
-      highlightKeyWords.startFromURL();
-    }, 'app.js');
-    volantis.pjax.send(() => {
-      volantis.dom.switcher.removeClass('active'); // 关闭移动端激活的搜索框
-      volantis.dom.header.removeClass('z_search-open'); // 关闭移动端激活的搜索框
-      volantis.dom.wrapper.removeClass('sub'); // 跳转页面时关闭二级导航
-      volantis.EventListener.remove() // 移除事件监听器 see: layout/_partial/scripts/global.ejs
-    }, 'app.js');
   });
 });
 
@@ -119,7 +106,7 @@ const VolantisApp = (() => {
   // 校正页面定位（被导航栏挡住的区域）
   fn.scrolltoElement = (elem, correction = scrollCorrection) => {
     volantis.scroll.to(elem, {
-      top: elem.offsetTop - correction
+      top: elem.getBoundingClientRect().top + document.documentElement.scrollTop - correction
     })
   }
 
@@ -210,6 +197,7 @@ const VolantisApp = (() => {
       volantis.dom.comment.click(e => { // 评论按钮点击后 跳转到评论区域
         e.preventDefault();
         e.stopPropagation();
+        volantis.cleanContentVisibility();
         fn.scrolltoElement(volantis.dom.commentTarget);
         e.stopImmediatePropagation();
       });
@@ -234,7 +222,7 @@ const VolantisApp = (() => {
           }
           volantis.dom.toc.removeClass('active');
         });
-      } else volantis.dom.toc.style.display = 'none'; // 隐藏toc目录按钮
+      } else if (volantis.dom.toc) volantis.dom.toc.style.display = 'none'; // 隐藏toc目录按钮
     }
   }
 
@@ -285,73 +273,31 @@ const VolantisApp = (() => {
   fn.setGlobalHeaderMenuEvent = () => {
     if (volantis.isMobile) {
       // 【移动端】 关闭已经展开的子菜单 点击展开子菜单
-      document.querySelectorAll('#l_header .m-phone li').forEach(function (_e) {
-        if (_e.querySelector(".list-v")) {
+      document.querySelectorAll('#l_header .m-phone li').forEach(function (e) {
+        if (e.querySelector(".list-v")) {
           // 点击菜单
-          volantis.dom.$(_e).click(function (e) {  
+          volantis.dom.$(e).click(function (e) {
             e.stopPropagation();
-            let menuType = ''
-            // 关闭.menu-phone
-            Array.from(e.currentTarget.children).some(val => {
-              if(val.classList.contains('s-menu')) {
-                menuType = 'menu' // 代表点击的是一级菜单外层的icon
-                return
-              }
-              if(val.classList.contains('menuitem')) {
-                menuType = 'item' // 点击的是下拉一级菜单
-                return
-              }
-            })
-            if(menuType === 'item') {
-              // 关闭已经展开的子菜单, 这一步是针对点击多个拥有二级子菜单的一级菜单，关闭其他所有一级菜单的二级菜单
-              // ①
-              e.currentTarget.parentElement.childNodes.forEach(function (e2) {
-                if (Object.prototype.toString.call(e2) == '[object HTMLLIElement]') {
-                  e2.childNodes.forEach(function (e1) {
-                    if (Object.prototype.toString.call(e1) == '[object HTMLUListElement]') {
-                      volantis.dom.$(e1).hide()
-                    }
-                  })
-                }
-              })
-              // 点击展开二级子菜单
-
-              /* 
-                由于采用事件委托，因此此处点击， 两种情况，currentTarget指向菜单按钮a.s-menu和ul的共同父元素li， 第二，指向ul中的li元素，也就是子菜单
-                区分：情况一的第一个子元素a的类名是s-menu；情况二的子元素a的类名为menuitem
-                我们要点击外部的menu icon时要关闭的是.menu-phone而不是.menuitem
-              */
-              let array = e.currentTarget.children
-              for (let index = 0; index < array.length; index++) {
-                const element = array[index];
-                if (volantis.dom.$(element).title === 'menu') { // 移动端菜单栏异常
-                  volantis.dom.$(element).style.display = "flex"      // https://github.com/volantis-x/hexo-theme-volantis/issues/706
-                } else {
-                  volantis.dom.$(element).show()
-                }
-              }
-            } else {  
-              let menuPhone = document.querySelector('.switcher .menu-phone')
-              let isHiding = window.getComputedStyle(menuPhone).display === 'none'
-              if(isHiding) {
-                volantis.dom.$(menuPhone).show()
-              } else {
-                volantis.dom.$(menuPhone).hide()
-                // 别忘了再执行①
-                // 准备关闭所有二级菜单, 注意此时的e和点击一级菜单时候的e层级不同
-                // 此处好像不能使用变量存储的menuPhone？要重新查询
-                document.querySelector('.switcher .menu-phone').childNodes.forEach(function (e2) {
-                  if (Object.prototype.toString.call(e2) == '[object HTMLLIElement]') {
-                    e2.childNodes.forEach(function (e1) {
-                      if (Object.prototype.toString.call(e1) == '[object HTMLUListElement]') {
-                        volantis.dom.$(e1).hide()
-                      }
-                    })
+            // 关闭已经展开的子菜单
+            e.currentTarget.parentElement.childNodes.forEach(function (e) {
+              if (Object.prototype.toString.call(e) == '[object HTMLLIElement]') {
+                e.childNodes.forEach(function (e) {
+                  if (Object.prototype.toString.call(e) == '[object HTMLUListElement]') {
+                    volantis.dom.$(e).hide()
                   }
                 })
               }
+            })
+            // 点击展开子菜单
+            let array = e.currentTarget.children
+            for (let index = 0; index < array.length; index++) {
+              const element = array[index];
+              if (volantis.dom.$(element).title === 'menu') { // 移动端菜单栏异常
+                volantis.dom.$(element).display = "flex"      // https://github.com/volantis-x/hexo-theme-volantis/issues/706
+              } else {
+                volantis.dom.$(element).show()
+              }
             }
-
           }, 0);
         }
       })
@@ -370,7 +316,7 @@ const VolantisApp = (() => {
     }
     fn.setPageHeaderMenuEvent();
   }
-  
+
   // 【移动端】隐藏子菜单
   fn.setPageHeaderMenuEvent = () => {
     if (!volantis.isMobile) return
@@ -391,16 +337,16 @@ const VolantisApp = (() => {
       e.stopPropagation();
       volantis.dom.header.toggleClass('z_search-open'); // 激活移动端搜索框
       volantis.dom.switcher.toggleClass('active'); // 移动端搜索按钮
-    }, false); // false : pjax 不移除监听
+    });
     // 点击空白取消激活
     volantis.dom.$(document).click(function (e) {
       volantis.dom.header.removeClass('z_search-open');
       volantis.dom.switcher.removeClass('active');
-    }, false); // false : pjax 不移除监听
+    });
     // 移动端点击搜索框 停止事件传播
     volantis.dom.search.click(function (e) {
       e.stopPropagation();
-    }, false); // false : pjax 不移除监听
+    });
   }
 
   // 设置 tabs 标签  【移动端 PC】
@@ -557,8 +503,8 @@ const VolantisApp = (() => {
   // 消息提示：标准
   fn.message = (title, message, option = {}, done = null) => {
     if (typeof iziToast === "undefined") {
-      volantis.css(volantis.GLOBAL_CONFIG.plugins.message.css)
-      volantis.js(volantis.GLOBAL_CONFIG.plugins.message.js, () => {
+      volantis.css(volantis.GLOBAL_CONFIG.cdn.izitoast_css)
+      volantis.js(volantis.GLOBAL_CONFIG.cdn.izitoast_js, () => {
         tozashMessage(title, message, option, done);
       });
     } else {
@@ -603,8 +549,8 @@ const VolantisApp = (() => {
   // 消息提示：询问
   fn.question = (title, message, option = {}, success = null, cancel = null, done = null) => {
     if (typeof iziToast === "undefined") {
-      volantis.css(volantis.GLOBAL_CONFIG.plugins.message.css)
-      volantis.js(volantis.GLOBAL_CONFIG.plugins.message.js, () => {
+      volantis.css(volantis.GLOBAL_CONFIG.cdn.izitoast_css)
+      volantis.js(volantis.GLOBAL_CONFIG.cdn.izitoast_js, () => {
         tozashQuestion(title, message, option, success, cancel, done);
       });
     } else {
@@ -664,8 +610,8 @@ const VolantisApp = (() => {
     }
 
     if (typeof iziToast === "undefined") {
-      volantis.css(volantis.GLOBAL_CONFIG.plugins.message.css)
-      volantis.js(volantis.GLOBAL_CONFIG.plugins.message.js, () => {
+      volantis.css(volantis.GLOBAL_CONFIG.cdn.izitoast_css)
+      volantis.js(volantis.GLOBAL_CONFIG.cdn.izitoast_js, () => {
         hideMessage(done);
       });
     } else {
@@ -711,23 +657,6 @@ const VolantisApp = (() => {
       fn.setTabs();
       fn.footnotes();
     },
-    pjaxReload: () => {
-      fn.event();
-      fn.restData();
-      fn.setHeader();
-      fn.setHeaderMenuSelection();
-      fn.setPageHeaderMenuEvent();
-      fn.setScrollAnchor();
-      fn.setTabs();
-      fn.footnotes();
-
-      // 移除小尾巴的移除
-      document.querySelector("#l_header .nav-main").querySelectorAll('.list-v:not(.menu-phone)').forEach(function (e) {
-        e.removeAttribute("style")
-      })
-      document.querySelector("#l_header .menu-phone.list-v").removeAttribute("style");
-      messageCopyrightShow = 0;
-    },
     utilCopyCode: fn.utilCopyCode,
     utilWriteClipText: fn.utilWriteClipText,
     utilTimeAgo: fn.utilTimeAgo,
@@ -741,118 +670,117 @@ const VolantisApp = (() => {
 Object.freeze(VolantisApp);
 
 /* FancyBox */
-const VolantisFancyBox = (() => {
-  const fn = {};
-
-  fn.loadFancyBox = (done) => {
-    volantis.css(volantis.GLOBAL_CONFIG.plugins.fancybox.css);
-    volantis.js(volantis.GLOBAL_CONFIG.plugins.fancybox.js).then(() => {
-      if (done) done();
-    })
+class VolantisFancyBox {
+  constructor(checkMain = true) {
+    this.option = {
+      Hash: false,
+      groupAll: true,
+      caption: (fancybox, slide) => slide.thumbEl?.alt || "",
+      wheel: "slide",
+      contentClick: 'iterateZoom',
+      Thumbs: {
+        showOnStart: false
+      },
+      Images: {
+        content: (_ref, slide) => {
+          const imgElement = slide.thumbEl;
+          const pictureElement = imgElement.closest('picture');
+          if (imgElement.hasAttribute('data-src')) {
+            imgElement.setAttribute('src', imgElement.getAttribute('data-src'));
+          }
+          if (pictureElement) {
+            pictureElement.classList.remove("lazy");
+            let sources = pictureElement.getElementsByTagName('source');
+            for (let source of sources) {
+              if (source.hasAttribute('data-srcset')) {
+                source.setAttribute('srcset', source.getAttribute('data-srcset'));
+              }
+            }
+            return pictureElement.outerHTML;
+          } else {
+            return imgElement.outerHTML;
+          }
+        },
+        Panzoom: {
+          maxScale: 1.5,
+          panMode: "mousemove",
+          mouseMoveFactor: 1.1,
+          mouseMoveFriction: 0.12,
+        }
+      },
+      Toolbar: {
+        display: {
+          left: ["infobar"],
+          middle: [
+            "zoomIn",
+            "zoomOut",
+            "toggle1to1",
+            "rotateCCW",
+            "rotateCW",
+            "flipX",
+            "flipY",
+          ],
+          right: ["slideshow", "download", "thumbs", "close"],
+        },
+      }
+    };
+    this.#init(checkMain);
   }
 
-  /**
-   * 加载及处理
-   * 
-   * @param {*} checkMain 是否只处理文章区域的文章
-   * @param {*} done      FancyBox 加载完成后的动作，默认执行分组绑定
-   * @returns 
-   */
-  fn.init = (checkMain = true, done = fn.groupBind) => {
+  #init(checkMain) {
     if (!document.querySelector(".md .gallery img, .fancybox") && checkMain) return;
+    this.groupBind();
+  }
+
+  async #checkFancybox(done) {
     if (typeof Fancybox === "undefined") {
-      fn.loadFancyBox(done);
+      await volantis.css(volantis.GLOBAL_CONFIG.cdn.fancybox_css);
+      await volantis.js(volantis.GLOBAL_CONFIG.cdn.fancybox_js);
+      done.call(this);
     } else {
-      done();
+      done.call(this);
     }
   }
 
-  /**
-   * 图片元素预处理
-   * 
-   * @param {*} selectors 选择器
-   * @param {*} name      分组
-   */
-  fn.elementHandling = (selectors, name) => {
-    const nodeList = document.querySelectorAll(selectors);
-    nodeList.forEach($item => {
+  #elementHandling(selectors, groupName) {
+    if (!selectors) return;
+    document.querySelectorAll(selectors).forEach($item => {
       if ($item.hasAttribute('fancybox')) return;
       $item.setAttribute('fancybox', '');
       const $link = document.createElement('a');
-      $link.setAttribute('href', $item.src);
-      $link.setAttribute('data-caption', $item.alt);
-      $link.setAttribute('data-fancybox', name);
+      $link.setAttribute('href', $item.src || $item.dataset?.src);
+      $link.setAttribute('data-caption', $item.alt || '');
+      $link.setAttribute('data-fancybox', groupName);
       $link.classList.add('fancybox');
       $link.append($item.cloneNode());
       $item.replaceWith($link);
-    })
-  }
-
-  /**
-   * 原生绑定
-   * 
-   * @param {*} selectors 选择器
-   */
-  fn.bind = (selectors) => {
-    fn.init(false, () => {
-      Fancybox.bind(selectors, {
-        groupAll: true,
-        Hash: false,
-        hideScrollbar: false,
-        Thumbs: {
-          autoStart: false,
-        },
-        caption: function (fancybox, carousel, slide) {
-          return slide.$trigger.alt || null
-        }
-      });
     });
   }
 
-  /**
-   * 分组绑定
-   * 
-   * @param {*} groupName 分组名称
-   */
-  fn.groupBind = (groupName = null) => {
-    const group = new Set();
+  bind(selectors) {
+    this.#checkFancybox(() => {
+      Fancybox?.unbind(selectors);
+      Fancybox?.bind(selectors, this.option);
+    });
+  }
 
-    document.querySelectorAll(".gallery").forEach(ele => {
-      if (ele.querySelector("img")) {
-        group.add(ele.getAttribute('data-group') || 'default');
-      }
-    })
-
-    if (!!groupName) group.add(groupName);
-
-    for (const iterator of group) {
-      Fancybox.unbind('[data-fancybox="' + iterator + '"]');
-      Fancybox.bind('[data-fancybox="' + iterator + '"]', {
-        Hash: false,
-        hideScrollbar: false,
-        Thumbs: {
-          autoStart: false,
+  groupBind(selectors, groupName = 'default') {
+    this.#checkFancybox(() => {
+      this.#elementHandling(selectors, groupName);
+      const group = new Set();
+      document.querySelectorAll('.gallery').forEach(ele => {
+        if (ele.querySelector("img")) {
+          group.add(ele.getAttribute('data-group') || 'default');
         }
       });
-    }
+      if (groupName) group.add(groupName);
+      group.forEach(name => {
+        Fancybox?.unbind(`[data-fancybox="${name}"]`);
+        Fancybox?.bind(`[data-fancybox="${name}"]`, this.option);
+      });
+    });
   }
-
-  return {
-    init: fn.init,
-    bind: fn.bind,
-    groupBind: (selectors, groupName = 'default') => {
-      try {
-        fn.elementHandling(selectors, groupName);
-        fn.init(false, () => {
-          fn.groupBind(groupName)
-        });
-      } catch (error) {
-        console.error(error)
-      }
-    }
-  }
-})()
-Object.freeze(VolantisFancyBox);
+}
 
 // highlightKeyWords 与 搜索功能搭配 https://github.com/next-theme/hexo-theme-next/blob/eb194a7258058302baf59f02d4b80b6655338b01/source/js/third-party/search/local-search.js
 // Question: 锚点稳定性未知
